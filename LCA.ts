@@ -1,7 +1,7 @@
-import https from 'https';
+import nodeHttps from 'https';
 import LeagueData from "./Data";
 import GameFlowPhase from './Types/GameFlowPhase';
-import HttpsClient from "./HttpsClient";
+import https from "./Https";
 import ChampSelectSession from './Types/ChampSelectSession';
 import RunePage from './Types/RunePage';
 import ChampSelectPhase from './Types/ChampSelectPhase';
@@ -28,7 +28,7 @@ namespace LCA {
         webSocket: WebSocket = null;
         port: number = null;
         authToken: string = null;
-        httpClient: HttpsClient = null;
+        httpClient: https.Client = null;
         gameFlowPhase: GameFlowPhase = "None";
         runePages: RunePage[] = [];
         champSelectSession: ChampSelectSession = null;
@@ -53,6 +53,15 @@ namespace LCA {
     
             this.eventHandlers.get(event).push(callback);
         }
+
+        once(event: "connection-state-change", callback: ConnectionStateChangeCallback): void;
+        once(event: "champ-select-session-update", callback: ChampSelectSessionUpdateCallback): void;
+        once(event: "champ-select-phase-change", callback: ChampSelectPhaseChangeCallback): void;
+        once(event: "champ-select-local-player-ban", callback: ChampSelectLocalPlayerBanCallback): void;
+        once(event: "champ-select-local-player-pick", callback: ChampSelectLocalPlayerPickCallback): void;
+        once(event: "champ-select-local-player-pick-completed", callback: ChampSelectLocalPlayerPickCompletedCallback): void;
+        once(event: "game-flow-phase-change", callback: GameFlowPhaseChangeCallback): void;
+        once(event: "runes-reloaded", callback: RunesReloadedCallback): void;
     
         once(event: LCAEvent, callback: (...args: any[]) => void){
             if(!this.oneTimeEventHandlers.has(event)) 
@@ -113,7 +122,7 @@ namespace LCA {
                     this.authToken = authToken;
                     this.handleEvent("connection-state-change", true);
     
-                    this.httpClient = new HttpsClient("127.0.0.1", port, { 'Authorization': "Basic " + authToken });
+                    this.httpClient = new https.Client("127.0.0.1", port, { 'Authorization': "Basic " + authToken });
     
                     // EVENTS
                     for (let eventName of Object.values(LCUEvent))
@@ -228,7 +237,7 @@ namespace LCA {
         //#region Champ Select
         /**
          * Declares intent to pick given champion
-         * @param {number | string} id The champion's id
+         * @param id The champion's id
          */
         declarePickIntent(id: number | string) {
             let request = this.httpClient.createRequest("PATCH", "/lol-lobby-team-builder/champ-select/v1/session/actions/" + this.champSelectSession.ownPickActionId);
@@ -240,7 +249,7 @@ namespace LCA {
     
         /**
          * Declares intent to ban given champion
-         * @param {number | string} id The champion's id
+         * @param id The champion's id
          */
         declareBanIntent(id: number | string) {
             let request = this.httpClient.createRequest("PATCH", "/lol-lobby-team-builder/champ-select/v1/session/actions/" + this.champSelectSession.ownBanActionId);
@@ -251,14 +260,14 @@ namespace LCA {
         }
     
         /**
-         * Locks the intended champion pick
+         * Locks the champion pick
          */
         lockPick() {
             this.httpClient.createRequest("POST", "/lol-lobby-team-builder/champ-select/v1/session/actions/" + this.champSelectSession.ownPickActionId + "/complete").send(res => { }).end();
         }
     
         /**
-         * Locks the intended champion ban
+         * Locks the champion ban
          */
         lockBan() {
             this.httpClient.createRequest("POST", "/lol-lobby-team-builder/champ-select/v1/session/actions/" + this.champSelectSession.ownBanActionId + "/complete").send(res => { }).end();
@@ -267,8 +276,7 @@ namespace LCA {
     
         //#region Runes
         /**
-         * 
-         * @returns {RunePage | null} The currently active rune page or null, if not found
+         * @returns The currently active rune page or null, if not found
          */
         getActiveRunePage(): RunePage | null {
             let rp = null;
@@ -283,9 +291,8 @@ namespace LCA {
          * Retrieves the rune pages from the client
          * @param {(runePages: RunePage[]) => void} callback
          */
-        updateRunePages(callback: (runePages: RunePage[]) => void = undefined) {
+        updateRunePages(callback: (runePages: RunePage[]) => void = undefined): void {
             let req = this.httpClient.createRequest('GET', '/lol-perks/v1/pages').send((res) => {
-                /** @type {[]} */
                 var body: any[] = [];
                 res.on('data', (chunk: any) => {
                     body.push(chunk);
@@ -308,8 +315,7 @@ namespace LCA {
         }
     
         /**
-         * 
-         * @returns {RunePage[]} An array of editable rune pages
+         * @returns An array of editable rune pages
          */
         getEditableRunePages(): RunePage[] {
             let pages = [];
@@ -321,9 +327,9 @@ namespace LCA {
     
         /**  
          * Sets a rune page as the active rune page
-         * @param {number | string} id The rune page's id
+         * @param id The rune page's id
          */
-        setActiveRunePage(id: number | string) {
+        setActiveRunePage(id: number | string): void {
             let request = this.httpClient.createRequest("PUT", "/lol-perks/v1/currentpage");
             let req = request.send((response) => { this.updateRunePages() });
             req.write(String(id));
@@ -332,9 +338,9 @@ namespace LCA {
     
         /**  
          * Deletes a rune page
-         * @param {number | string} id The rune page's id
+         * @param id The rune page's id
          */
-        deleteRunePage(id: number | string) {
+        deleteRunePage(id: number | string): void {
             let request = this.httpClient.createRequest("DELETE", "/lol-perks/v1/pages/" + id);
             let req = request.send((response) => { this.updateRunePages() });
             req.end();
@@ -342,9 +348,9 @@ namespace LCA {
     
         /**
          * Creates a rune page in the client
-         * @param {RunePage} page The rune page
+         * @param page The rune page
          */
-        createRunePage(page: RunePage) {
+        createRunePage(page: RunePage): void {
             let request = this.httpClient.createRequest("POST", "/lol-perks/v1/pages");
             request.setHeader('Content-Type', 'application/json');
             let req = request.send((response) => { this.updateRunePages() });
@@ -354,8 +360,7 @@ namespace LCA {
     
         /**
          * Searches for a rune page with a certain id
-         * @param {number | string} id The id to search for 
-         * @returns {RunePage}
+         * @param id The id to search for 
          */
         getRunePageById(id: number | string): RunePage {
             return this.runePages.find(page => page.id === Number(id)) ?? null;
@@ -366,9 +371,14 @@ namespace LCA {
     export const Data = LeagueData;
 
     export const Util = {
+        /**
+         * Simple https get request
+         * @param url 
+         * @returns The response string or null
+         */
         httpsGet(url: string) : Promise<string | null> {
             return new Promise((resolve, reject) => {
-                https.get(url, res => {
+                nodeHttps.get(url, res => {
                     var resBody = [];
         
                     res.setEncoding('utf8');
@@ -379,6 +389,10 @@ namespace LCA {
             }).then(value => value, err => null);
         },
 
+        /**
+         * Compares two patch versions
+         * @returns true, if the first patch is newer 
+         */
         isPatchNewer(firstPatch: string, secondPatch: string) : boolean {
             let firstPatchArr = firstPatch.split(".").map(n => Number(n));
             let secondPatchArr = secondPatch.split(".").map(n => Number(n));

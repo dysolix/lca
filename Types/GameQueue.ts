@@ -1,8 +1,8 @@
-export type Queue = {
+export type GameQueue = {
     queueId: number;
     map: string;
     description: string;
     notes: string;
 };
 
-export default Queue;
+export default GameQueue;

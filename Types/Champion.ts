@@ -1,3 +1,5 @@
+import ImageData from "./ImageData"
+
 type Champion = {
     version: string
     id: string
@@ -6,7 +8,7 @@ type Champion = {
     title: string
     blurb: string
     info: ChampionInfo
-    image: ChampionImage
+    image: ImageData
     tags: ChampionTag[]
     partype: ChampionPartype
     stats: ChampionStats
@@ -21,16 +23,6 @@ type Champion = {
     defense: number
     magic: number
     difficulty: number
-  }
-  
-  export type ChampionImage = {
-    full: string
-    sprite: string
-    group: string
-    x: number
-    y: number
-    w: number
-    h: number
   }
   
   export type ChampionStats = {

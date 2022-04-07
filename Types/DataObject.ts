@@ -2,7 +2,7 @@ import Champion from "./Champion";
 import GameMap from "./GameMap";
 import GameMode from "./GameMode";
 import GameType from "./GameType";
-import Queue from "./Queue";
+import Queue from "./GameQueue";
 
 type DataObject = {
     version?: string;
