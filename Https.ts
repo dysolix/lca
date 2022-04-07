@@ -1,5 +1,5 @@
 import { ClientRequest, IncomingMessage } from "http";
-import nodeHttps from "https";
+import * as nodeHttps from "https";
 
 namespace https{
     export class Client {
@@ -57,7 +57,7 @@ namespace https{
         port: number,
         method?: string,
         path?: string,
-        headers: {},
+        headers: { [key: string]: any; },
         agent: nodeHttps.Agent | boolean
     }
 }

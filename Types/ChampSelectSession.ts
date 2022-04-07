@@ -25,24 +25,24 @@ export default class ChampSelectSession {
     }
 
     getPickedChampionIds(): number[] {
-        let picked = [];
+        let picked: number[] = [];
 
         for (let actionGroup of this.data.actions)
             for (let action of actionGroup)
                 if (action.type === "pick" && !picked.includes(action.championId)) {
-                    picked.push(String(action.championId));
+                    picked.push(Number(action.championId));
                 }
 
         return picked;
     }
 
     getBannedChampionIds(): number[] {
-        let banned = [];
+        let banned: number[] = [];
 
         for (let actionGroup of this.data.actions)
             for (let action of actionGroup)
                 if (action.type === "ban" && !banned.includes(action.championId)) {
-                    banned.push(String(action.championId));
+                    banned.push(Number(action.championId));
                 }
 
         return banned;
@@ -69,7 +69,7 @@ export default class ChampSelectSession {
         return "NONE";
     }
 
-    getActionById(id) {
+    getActionById(id: number) {
         for (let actionGroup of this.data.actions)
             for (let action of actionGroup)
                 if (action.id == id)

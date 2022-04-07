@@ -5,6 +5,7 @@ import GameType from "./GameType";
 import Queue from "./GameQueue";
 
 type DataObject = {
+    [key: string]: any,
     version?: string;
     champions?: Champion[];
     summonerSpells?: [];

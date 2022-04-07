@@ -42,12 +42,11 @@ const Data = {
         options.dataVersion = data.version ?? null;
         this.dataPatch = options.dataVersion;
 
-        let promises = [];
+        let promises: Promise<any>[] = [];
 
         let targetDataVersion = options.requireLatestData ? Data.latestPatch : (data.version ?? null);
         if (targetDataVersion == null) throw new Error("Invalid target data version: " + targetDataVersion);
         Data.dataPatch = targetDataVersion;
-
 
         Object.entries(Data).forEach(([key, val]) => {
             if(val instanceof DataHandler){
@@ -62,7 +61,8 @@ const Data = {
             throw new Error("Error while loading data: " + err);
         });
 
-        window['data'] = Data;
+
+        //window['data'] = Data;
     },
 
     /**
@@ -70,7 +70,7 @@ const Data = {
      * @returns {DataObject} Data object that can be stored and passed into the init method
      */
     getDataObject(): DataObject {
-        let dataObject = { version: this.dataPatch };
+        let dataObject: DataObject = { version: this.dataPatch };
 
         Object.entries<any>(this).forEach(([key, value]) => {
             if (value?.values?.length > 0) {
@@ -82,8 +82,8 @@ const Data = {
     },
 
     /** Latest patch  */
-    latestPatch: null,
-    dataPatch: null,
+    latestPatch: null as string,
+    dataPatch: null as string,
     wasUpdated: false,
 
     getDataDragonUrl(language: LanguageCode = "en_US", patch: string = undefined, file = ""): string {
