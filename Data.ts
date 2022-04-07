@@ -14,7 +14,7 @@ const httpsGet = LCA.Util.httpsGet;
 export type DataKey = "champions" | "summonerSpells" | "queues" | "gameModes" | "maps" | "gameTypes";
 
 abstract class DataHandler<T>{
-    values: T[]
+    values: T[] = []
 
     load = async (data: T[] | null, options?: DataInitOptions) => {
         if (data !== null) {
@@ -27,7 +27,14 @@ abstract class DataHandler<T>{
     abstract downloadData(options?: DataInitOptions): Promise<T[]>;
 }
 
-const Data = {
+type DataType = {
+    dataPatch: string | null;
+    latestPatch: string | null;
+
+    [key: string]: any;
+}
+
+const Data: DataType = {
     async init({ data = {}, options = {} }: { data?: DataObject, options: DataInitOptions } = { data: {}, options: {} }) {
         options.server = options.server ?? "euw";
         options.language = options.language ?? "en_US";
@@ -39,8 +46,7 @@ const Data = {
                 throw new Error("Unable to retrieve latest patch.");
         }
 
-        options.dataVersion = data.version ?? null;
-        this.dataPatch = options.dataVersion;
+        this.dataPatch = data.version ?? null;
 
         let promises: Promise<any>[] = [];
 
@@ -70,7 +76,8 @@ const Data = {
      * @returns {DataObject} Data object that can be stored and passed into the init method
      */
     getDataObject(): DataObject {
-        let dataObject: DataObject = { version: this.dataPatch };
+        let dataObject: DataObject = { };
+        if(this.dataPatch !== null) dataObject.version = this.dataPatch;
 
         Object.entries<any>(this).forEach(([key, value]) => {
             if (value?.values?.length > 0) {
@@ -82,11 +89,11 @@ const Data = {
     },
 
     /** Latest patch  */
-    latestPatch: null as string,
-    dataPatch: null as string,
+    latestPatch: null,
+    dataPatch: null,
     wasUpdated: false,
 
-    getDataDragonUrl(language: LanguageCode = "en_US", patch: string = undefined, file = ""): string {
+    getDataDragonUrl(language: LanguageCode = "en_US", patch: string | undefined = undefined, file = ""): string {
         return `https://ddragon.leagueoflegends.com/cdn/${(patch ?? this.latestPatch)}/data/${language}/${file}`;
     },
 
@@ -98,22 +105,22 @@ const Data = {
      * @param server Server region, defaults to "euw"
      * @returns The latest patch for given server region
      */
-    async getLatestPatch(server: string = "euw"): Promise<string> {
+    async getLatestPatch(server: string = "euw"): Promise<string | null> {
         let responseString = await httpsGet(`https://ddragon.leagueoflegends.com/realms/${server}.json`);
         if (responseString == null) return null;
         let realmData = JSON.parse(responseString);
         return realmData.dd;
     },
 
-    Champions: new class extends DataHandler<Champion>{
-        downloadData = async (options: DataInitOptions): Promise<Champion[]> => JSON.parse(await httpsGet(`${Data.getDataDragonUrl(options.language, Data.dataPatch, "champion.json")}`)).data;
+    Champions: new class Champions extends DataHandler<Champion>{
+        downloadData = async (options: DataInitOptions): Promise<Champion[]> => JSON.parse(await httpsGet(`${Data.getDataDragonUrl(options.language, Data.dataPatch, "champion.json")}`) ?? "").data;
 
         /**
          * @param identifier The champions display name, internal name or key
          * @returns The champion corresponding to the passed identifier
          */
          getChampion(identifier: string | number): Champion | null {
-            if (!isNaN(Number(identifier))) {
+            if (!isNaN(identifier as any)) {
                 return this.values.find(champion => champion.key == identifier) ?? null;
             } else {
                 return this.values.find(champion => champion.id === identifier || champion.name === identifier) ?? null;
@@ -121,14 +128,14 @@ const Data = {
         }
     },
 
-    SummonerSpells: new class extends DataHandler<SummonerSpell>{
-        downloadData = async (options: DataInitOptions): Promise<SummonerSpell[]> => JSON.parse(await httpsGet(`${Data.getDataDragonUrl(options.language, Data.dataPatch, "summoner.json")}`)).data;
+    SummonerSpells: new class SummonerSpells extends DataHandler<SummonerSpell>{
+        downloadData = async (options: DataInitOptions): Promise<SummonerSpell[]> => JSON.parse(await httpsGet(`${Data.getDataDragonUrl(options.language, Data.dataPatch, "summoner.json")}`) ?? "").data;
     },
 
-    Queues: new class extends DataHandler<GameQueue>{
-        downloadData = async (): Promise<GameQueue[]> => JSON.parse(await httpsGet(`${Data.getStaticDataUrl("queues.json")}`));
+    Queues: new class Queues extends DataHandler<GameQueue>{
+        downloadData = async (): Promise<GameQueue[]> => JSON.parse(await httpsGet(`${Data.getStaticDataUrl("queues.json")}`) ?? "");
 
-        getQueue(identifier: number): GameQueue {
+        getQueue(identifier: number): GameQueue | undefined {
             return this.values.find(q => q.queueId == identifier);
         }
 
@@ -137,16 +144,16 @@ const Data = {
         }
     },
 
-    Maps: new class extends DataHandler<GameMap>{
-        downloadData = async (): Promise<GameMap[]> => JSON.parse(await httpsGet(`${Data.getStaticDataUrl("maps.json")}`));
+    Maps: new class Maps extends DataHandler<GameMap>{
+        downloadData = async (): Promise<GameMap[]> => JSON.parse(await httpsGet(`${Data.getStaticDataUrl("maps.json")}`) ?? "");
     },
 
-    GameModes: new class extends DataHandler<GameMode>{
-        downloadData = async (): Promise<GameMode[]> => JSON.parse(await httpsGet(`${Data.getStaticDataUrl("gameModes.json")}`));
+    GameModes: new class GameModes extends DataHandler<GameMode>{
+        downloadData = async (): Promise<GameMode[]> => JSON.parse(await httpsGet(`${Data.getStaticDataUrl("gameModes.json")}`) ?? "");
     },
 
-    GameTypes: new class extends DataHandler<GameType>{
-        downloadData = async (): Promise<GameType[]> => JSON.parse(await httpsGet(`${Data.getStaticDataUrl("gameTypes.json")}`));
+    GameTypes: new class GameTypes extends DataHandler<GameType>{
+        downloadData = async (): Promise<GameType[]> => JSON.parse(await httpsGet(`${Data.getStaticDataUrl("gameTypes.json")}`) ?? "");
     }
 }
 

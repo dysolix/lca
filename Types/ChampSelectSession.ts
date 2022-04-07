@@ -78,7 +78,7 @@ export default class ChampSelectSession {
         return null;
     }
 
-    getTenBansRevealActionId(): number {
+    getTenBansRevealActionId(): number | null {
         for (let actionGroup of this.data.actions)
             for (let action of actionGroup)
                 if (action.type === "ten_bans_reveal")

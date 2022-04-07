@@ -23,13 +23,13 @@ declare global{
 
 export default class Client {
     isConnected: boolean = false;
-    webSocket: WebSocket = null;
-    port: number = null;
-    authToken: string = null;
-    httpClient: https.Client = null;
+    webSocket: WebSocket | null = null;
+    port: number | null = null;
+    authToken: string | null = null;
+    httpClient: https.Client | null = null;
     gameFlowPhase: LCA.Types.GameFlowPhase = "None";
     runePages: LCA.Classes.RunePage[] = [];
-    champSelectSession: LCA.Classes.ChampSelectSession = null;
+    champSelectSession: LCA.Classes.ChampSelectSession | null = null;
     eventNames: any;
 
     constructor() {
@@ -49,7 +49,7 @@ export default class Client {
         if(!this.eventHandlers.has(event)) 
             this.eventHandlers.set(event, []);
 
-        this.eventHandlers.get(event).push(callback);
+        this.eventHandlers.get(event)?.push(callback);
     }
 
     once(event: "connection-state-change", callback: ConnectionStateChangeCallback): void;
@@ -65,7 +65,7 @@ export default class Client {
         if(!this.oneTimeEventHandlers.has(event)) 
             this.oneTimeEventHandlers.set(event, []);
 
-        this.oneTimeEventHandlers.get(event).push(callback);
+        this.oneTimeEventHandlers.get(event)?.push(callback);
     }
 
     private eventHandlers = new Map<string, ((...args: any[]) => void)[]>();
@@ -96,7 +96,7 @@ export default class Client {
                     let port = null;
                     let password = null;
         
-                    if ((portArr?.length ?? 0) === 2 && (passArr?.length ?? 0) === 2) {
+                    if (portArr !== null && passArr !== null && (portArr?.length ?? 0) === 2 && (passArr?.length ?? 0) === 2) {
                         port = portArr[1];
                         password = passArr[1];
 
@@ -111,7 +111,7 @@ export default class Client {
             let password = data.authToken;
 
             let authToken = Buffer.from(("riot:" + password)).toString("base64");
-            let ws = new WebSocket(("wss://127.0.0.1:" + port), null, { headers: { Authorization: "Basic " + authToken }, rejectUnauthorized: false });
+            let ws = new WebSocket(("wss://127.0.0.1:" + port), undefined, { headers: { Authorization: "Basic " + authToken }, rejectUnauthorized: false });
 
             ws.onopen = (ev) => {
                 this.isConnected = true;
@@ -219,6 +219,8 @@ export default class Client {
      * Accepts a ready check
      */
     acceptMatch() {
+        if(this.httpClient === null) return;
+
         let request = this.httpClient.createRequest("POST", "/lol-lobby-team-builder/v1/ready-check/accept");
         request.send(response => { }).end();
     }
@@ -227,6 +229,8 @@ export default class Client {
      * Declines a ready check
      */
     declineMatch() {
+        if(this.httpClient === null) return;
+
         let request = this.httpClient.createRequest("POST", "/lol-lobby-team-builder/v1/ready-check/decline");
         request.send(response => { }).end();
     }
@@ -238,9 +242,12 @@ export default class Client {
      * @param id The champion's id
      */
     declarePickIntent(id: number | string) {
+        if(this.httpClient === null) return;
+        if(this.champSelectSession === null) return;
+
         let request = this.httpClient.createRequest("PATCH", "/lol-lobby-team-builder/champ-select/v1/session/actions/" + this.champSelectSession.ownPickActionId);
         request.setHeader("Content-Type", "application/json");
-        let req = request.send((response) => { });
+        let req = request?.send((response) => { });
         req.write(JSON.stringify({ championId: Number(id) }));
         req.end();
     }
@@ -250,9 +257,12 @@ export default class Client {
      * @param id The champion's id
      */
     declareBanIntent(id: number | string) {
+        if(this.httpClient === null) return;
+        if(this.champSelectSession === null) return;
+
         let request = this.httpClient.createRequest("PATCH", "/lol-lobby-team-builder/champ-select/v1/session/actions/" + this.champSelectSession.ownBanActionId);
         request.setHeader("Content-Type", "application/json");
-        let req = request.send((response) => { });
+        let req = request?.send((response) => { });
         req.write(JSON.stringify({ championId: Number(id) }));
         req.end();
     }
@@ -261,6 +271,9 @@ export default class Client {
      * Locks the champion pick
      */
     lockPick() {
+        if(this.httpClient === null) return;
+        if(this.champSelectSession === null) return;
+
         this.httpClient.createRequest("POST", "/lol-lobby-team-builder/champ-select/v1/session/actions/" + this.champSelectSession.ownPickActionId + "/complete").send(res => { }).end();
     }
 
@@ -268,6 +281,9 @@ export default class Client {
      * Locks the champion ban
      */
     lockBan() {
+        if(this.httpClient === null) return;
+        if(this.champSelectSession === null) return;
+
         this.httpClient.createRequest("POST", "/lol-lobby-team-builder/champ-select/v1/session/actions/" + this.champSelectSession.ownBanActionId + "/complete").send(res => { }).end();
     }
     //#endregion
@@ -287,9 +303,10 @@ export default class Client {
 
     /**
      * Retrieves the rune pages from the client
-     * @param {(runePages: RunePage[]) => void} callback
      */
-    updateRunePages(callback: (runePages: LCA.Classes.RunePage[]) => void = undefined): void {
+    updateRunePages(callback: ((runePages: LCA.Classes.RunePage[]) => void) | undefined = undefined): void {
+        if(this.httpClient === null) return;
+
         let req = this.httpClient.createRequest('GET', '/lol-perks/v1/pages').send((res) => {
             var body: any[] = [];
             res.on('data', (chunk: any) => {
@@ -328,6 +345,8 @@ export default class Client {
      * @param id The rune page's id
      */
     setActiveRunePage(id: number | string): void {
+        if(this.httpClient === null) return;
+
         let request = this.httpClient.createRequest("PUT", "/lol-perks/v1/currentpage");
         let req = request.send((response) => { this.updateRunePages() });
         req.write(String(id));
@@ -339,6 +358,8 @@ export default class Client {
      * @param id The rune page's id
      */
     deleteRunePage(id: number | string): void {
+        if(this.httpClient === null) return;
+
         let request = this.httpClient.createRequest("DELETE", "/lol-perks/v1/pages/" + id);
         let req = request.send((response) => { this.updateRunePages() });
         req.end();
@@ -349,6 +370,8 @@ export default class Client {
      * @param page The rune page
      */
     createRunePage(page: LCA.Classes.RunePage): void {
+        if(this.httpClient === null) return;
+
         let request = this.httpClient.createRequest("POST", "/lol-perks/v1/pages");
         request.setHeader('Content-Type', 'application/json');
         let req = request.send((response) => { this.updateRunePages() });
@@ -360,7 +383,7 @@ export default class Client {
      * Searches for a rune page with a certain id
      * @param id The id to search for 
      */
-    getRunePageById(id: number | string): LCA.Classes.RunePage {
+    getRunePageById(id: number | string): LCA.Classes.RunePage | null {
         return this.runePages.find(page => page.id === Number(id)) ?? null;
     }
     //#endregion

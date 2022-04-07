@@ -39,7 +39,7 @@ namespace LCA {
          * @returns The response string or null
          */
         export function httpsGet(url: string) : Promise<string | null> {
-            return new Promise((resolve, reject) => {
+            return new Promise<string | null>((resolve, reject) => {
                 _https.get(url, res => {
                     var resBody: string[] = [];
         
