@@ -1,3 +1,5 @@
+import Data from "../Data";
+
 export default class RunePage {
     autoModifiedSelections: any[];
     current: boolean;
@@ -10,8 +12,9 @@ export default class RunePage {
     name: string;
     order: number;
     selectedPerkIds: number[];
-    primaryStyleId: number;
-    subStyleId: number;
+
+    private _primaryStyleId: number | undefined;
+    private _subStyleId: number | undefined;
 
     constructor(data: any = {}) {
         this.autoModifiedSelections = data.autoModifiedSelections ?? [];
@@ -29,6 +32,28 @@ export default class RunePage {
         this.subStyleId = data.subStyleId ?? 0;
     }
 
+    get primaryStyleId() {
+        if(!Data.Runes.isLoaded)
+            return this._primaryStyleId;
+        
+        return Data.Runes.getRuneTreeByRune(this.selectedPerkIds[0])?.id;
+    }
+
+    get subStyleId() {
+        if(!Data.Runes.isLoaded)
+            return this._subStyleId;
+        
+        return Data.Runes.getRuneTreeByRune(this.selectedPerkIds[4])?.id;
+    }
+
+    set primaryStyleId(value){
+        this._primaryStyleId = value;
+    }
+
+    set subStyleId(value){
+        this._primaryStyleId = value;
+    }
+
     update(){
         let client = window.leagueClient;
         if(!client) return;
@@ -39,6 +64,10 @@ export default class RunePage {
 
     toJSON(){
         let jsonObj = { ...this };
+
+        delete jsonObj._primaryStyleId;
+        delete jsonObj._subStyleId;
+
         jsonObj.primaryStyleId = this.primaryStyleId;
         jsonObj.subStyleId = this.subStyleId;
         return jsonObj;
