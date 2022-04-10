@@ -1,6 +1,10 @@
-type GameMode = {
-    gameMode: string;
-    description: string;
-};
+declare global {
+    namespace LCA {
+        type GameMode = {
+            gameMode: string;
+            description: string;
+        }
+    }
+}
 
-export default GameMode;
+export { }

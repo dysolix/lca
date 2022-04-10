@@ -1,5 +1,3 @@
-import LCA from "../LCA";
-
 export default class RunePage {
     autoModifiedSelections: any[];
     current: boolean;
@@ -32,7 +30,7 @@ export default class RunePage {
     }
 
     update(){
-        let client: LCA.Client = window['leagueClient'];
+        let client = window.leagueClient;
         if(!client) return;
 
         client.deleteRunePage(this.id);
@@ -44,5 +42,13 @@ export default class RunePage {
         jsonObj.primaryStyleId = this.primaryStyleId;
         jsonObj.subStyleId = this.subStyleId;
         return jsonObj;
+    }
+}
+
+type RunePageType = RunePage;
+
+declare global {
+    namespace LCA {
+        type RunePage = RunePageType;
     }
 }

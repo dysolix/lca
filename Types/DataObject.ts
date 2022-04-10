@@ -1,18 +1,16 @@
-import Champion from "./Champion";
-import GameMap from "./GameMap";
-import GameMode from "./GameMode";
-import GameType from "./GameType";
-import Queue from "./GameQueue";
+declare global {
+    namespace LCA {
+        type DataObject = {
+            [key: string]: any,
+            version?: string;
+            champions?: Champion[];
+            summonerSpells?: [];
+            queues?: GameQueue[];
+            gameModes?: GameMode[];
+            maps?: GameMap[];
+            gameTypes?: GameType[];
+        };
+    }
+}
 
-type DataObject = {
-    [key: string]: any,
-    version?: string;
-    champions?: Champion[];
-    summonerSpells?: [];
-    queues?: Queue[];
-    gameModes?: GameMode[];
-    maps?: GameMap[];
-    gameTypes?: GameType[];
-};
-
-export default DataObject;
+export { }

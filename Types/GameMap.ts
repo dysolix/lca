@@ -1,7 +1,13 @@
-type GameMap = {
-    mapId: number;
-    mapName: string;
-    notes: string;
-};
+declare global {
+    namespace LCA {
+        type GameMap = {
+            mapId: number;
+            mapName: string;
+            notes: string;
+        };
 
-export default GameMap;
+        function x(): any;
+    }
+}
+
+export { }

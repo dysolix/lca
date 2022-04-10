@@ -1,39 +1,46 @@
-import https from "./Https";
+import HttpsClient from "./HttpsClient";
 import { exec } from "child_process";
 import * as WebSocket from "ws";
-import LCA from "./LCA";
+import { delay } from "./Util";
+import ChampSelectSession from "./Types/ChampSelectSession";
+import RunePage from "./Types/RunePage";
 
 type ConnectionStateChangeCallback = (state: boolean) => void;
 
 type ChampSelectSessionUpdateCallback = () => void;
-type ChampSelectPhaseChangeCallback = (previousPhase: LCA.Types.ChampSelectPhase, phase: LCA.Types.ChampSelectPhase) => void;
+type ChampSelectPhaseChangeCallback = (previousPhase: LCA.ChampSelectPhase, phase: LCA.ChampSelectPhase) => void;
 type ChampSelectLocalPlayerBanCallback = () => void;
 type ChampSelectLocalPlayerPickCallback = () => void;
 type ChampSelectLocalPlayerPickCompletedCallback = (championId: number) => void;
 
-type GameFlowPhaseChangeCallback = (previousPhase: LCA.Types.GameFlowPhase, phase: LCA.Types.GameFlowPhase) => void;
+type GameFlowPhaseChangeCallback = (previousPhase: LCA.GameFlowPhase, phase: LCA.GameFlowPhase) => void;
 
-type RunesReloadedCallback = (runes: LCA.Classes.RunePage[]) => void;
+type RunesReloadedCallback = (runes: LCA.RunePage[]) => void;
 
-declare global{
-    interface Window {
-        leagueClient: Client
-    }
+declare global {
+    var leagueClient: Client
 }
 
-export default class Client {
-    isConnected: boolean = false;
-    webSocket: WebSocket | null = null;
-    port: number | null = null;
-    authToken: string | null = null;
-    httpClient: https.Client | null = null;
-    gameFlowPhase: LCA.Types.GameFlowPhase = "None";
-    runePages: LCA.Classes.RunePage[] = [];
-    champSelectSession: LCA.Classes.ChampSelectSession | null = null;
-    eventNames: any;
+type Nullable<T> = LCA.Nullable<T>;
 
-    constructor() {
-        window.leagueClient = this;
+export default class Client {
+    public isConnected: boolean = false;
+
+    public port: Nullable<number> = null;
+    public authToken: Nullable<string> = null;
+
+    private webSocket: Nullable<WebSocket> = null;
+    private httpClient: Nullable<HttpsClient> = null;
+
+    public champSelectSession: Nullable<ChampSelectSession> = null;
+    public gameFlowPhase: LCA.GameFlowPhase = "None";
+    public runePages: RunePage[] = [];
+
+    private autoReconnect: boolean;
+
+    constructor(autoReconnect = true) {
+        leagueClient = this;
+        this.autoReconnect = autoReconnect;
     }
 
     on(event: "connection-state-change", callback: ConnectionStateChangeCallback): void;
@@ -45,8 +52,8 @@ export default class Client {
     on(event: "game-flow-phase-change", callback: GameFlowPhaseChangeCallback): void;
     on(event: "runes-reloaded", callback: RunesReloadedCallback): void;
 
-    on(event: LCA.Types.LCAEvent, callback: (...args: any[]) => void){
-        if(!this.eventHandlers.has(event)) 
+    on(event: LCA.LCAEvent, callback: (...args: any[]) => void) {
+        if (!this.eventHandlers.has(event))
             this.eventHandlers.set(event, []);
 
         this.eventHandlers.get(event)?.push(callback);
@@ -61,8 +68,8 @@ export default class Client {
     once(event: "game-flow-phase-change", callback: GameFlowPhaseChangeCallback): void;
     once(event: "runes-reloaded", callback: RunesReloadedCallback): void;
 
-    once(event: LCA.Types.LCAEvent, callback: (...args: any[]) => void){
-        if(!this.oneTimeEventHandlers.has(event)) 
+    once(event: LCA.LCAEvent, callback: (...args: any[]) => void) {
+        if (!this.oneTimeEventHandlers.has(event))
             this.oneTimeEventHandlers.set(event, []);
 
         this.oneTimeEventHandlers.get(event)?.push(callback);
@@ -70,7 +77,7 @@ export default class Client {
 
     private eventHandlers = new Map<string, ((...args: any[]) => void)[]>();
     private oneTimeEventHandlers = new Map<string, ((...args: any[]) => void)[]>();
-    private handleEvent(event: LCA.Types.LCAEvent, ...args: any[]){
+    private emit(event: LCA.LCAEvent, ...args: any[]) {
         this.eventHandlers.get(event)?.forEach(callback => callback.apply(null, args));
         this.oneTimeEventHandlers.get(event)?.forEach(callback => callback.apply(null, args));
         this.oneTimeEventHandlers.clear()
@@ -93,24 +100,18 @@ export default class Client {
                 exec('wmic PROCESS WHERE name=\'LeagueClientUx.exe\' GET commandline', (error, stdout, stderr) => {
                     let portArr = stdout.match("--app-port=([0-9]*)");
                     let passArr = stdout.match("--remoting-auth-token=([\\w-]*)");
-                    let port = null;
-                    let password = null;
-        
-                    if (portArr !== null && passArr !== null && (portArr?.length ?? 0) === 2 && (passArr?.length ?? 0) === 2) {
-                        port = portArr[1];
-                        password = passArr[1];
 
-                        resolve({port: Number(port), authToken: String(password)});
-                    }else{
+                    if (portArr !== null && passArr !== null && (portArr?.length ?? 0) === 2 && (passArr?.length ?? 0) === 2) {
+                        resolve({ port: Number(portArr[1]), authToken: String(passArr[1]) });
+                    } else {
                         reject();
-                    }        
+                    }
                 });
             }
-        ).then((data : any) => {
+        ).then((data: any) => {
             let port = data.port;
-            let password = data.authToken;
-
-            let authToken = Buffer.from(("riot:" + password)).toString("base64");
+            let authToken = Buffer.from(("riot:" + data.authToken)).toString("base64");
+            
             let ws = new WebSocket(("wss://127.0.0.1:" + port), undefined, { headers: { Authorization: "Basic " + authToken }, rejectUnauthorized: false });
 
             ws.onopen = (ev) => {
@@ -118,20 +119,23 @@ export default class Client {
                 this.webSocket = ws;
                 this.port = port;
                 this.authToken = authToken;
-                this.handleEvent("connection-state-change", true);
+                this.emit("connection-state-change", true);
 
-                this.httpClient = new https.Client("127.0.0.1", port, { 'Authorization': "Basic " + authToken });
+                this.httpClient = new HttpsClient("127.0.0.1", port, { 'Authorization': "Basic " + authToken });
 
                 // EVENTS
-                for (let eventName of Object.values(LCA.Enums.LCUEvent))
+                for (let eventName of Object.values(LCA.LCUEvent))
                     this.subscribeEvent(eventName);
 
                 setTimeout(() => this.updateRunePages(), 2500);
             }
-            ws.onclose = (ev) => {
+            ws.onclose = async (ev) => {
                 this.isConnected = false;
-                setTimeout(() => this.connect(), 2500);
-                this.handleEvent("connection-state-change", false);
+                this.emit("connection-state-change", false);
+
+                await delay(2500);
+                if (this.autoReconnect)
+                    this.connect()
             }
             ws.onerror = (ev) => {
                 //SUPRESSES CONSOLE ERRORS
@@ -142,16 +146,24 @@ export default class Client {
                     if (data.length == 3) this.onSubscribedEvent(data);
                 } catch (ex) { }
             }
-        }, err => setTimeout(() => this.connect(), 2500));
+        }, async err => {
+            await delay(2500);
+            if (this.autoReconnect)
+                this.connect()
+        });
     }
 
-    subscribeEvent(eventName: LCA.Enums.LCUEvent) {
+    disconnect() {
+
+    }
+
+    subscribeEvent(eventName: LCA.LCUEvent) {
         if (this.webSocket !== null && this.webSocket.readyState === 1) {
             this.webSocket.send(JSON.stringify([5, eventName]));
         }
     }
 
-    unsubscribeEvent(eventName: LCA.Enums.LCUEvent) {
+    unsubscribeEvent(eventName: LCA.LCUEvent) {
         if (this.webSocket !== null && this.webSocket.readyState === 1) {
             this.webSocket.send(JSON.stringify([6, eventName]));
         }
@@ -166,8 +178,10 @@ export default class Client {
         let uri = value.uri;
         let data = value.data;
 
+        const Events = LCA.LCUEvent;
+
         switch (event[1]) {
-            case this.eventNames.gameFlowPhase: {
+            case Events.GameFlowPhase: {
                 if (this.gameFlowPhase !== data) {
                     this.eventHandlers.get("game-flow-phase-change")?.forEach(callback => callback(this.gameFlowPhase, data));
                     this.gameFlowPhase = data;
@@ -176,35 +190,35 @@ export default class Client {
                 break;
             }
 
-            case this.eventNames.teamBuilderChampSelect: {
+            case Events.TeamBuilderChampSelect: {
                 if (uri === "/lol-lobby-team-builder/champ-select/v1/session") {
                     if (eventType === "Delete") {
                         this.champSelectSession = null;
-                        this.handleEvent("champ-select-session-update");
+                        this.emit("champ-select-session-update");
                         return;
                     }
 
-                    let session = new LCA.Classes.ChampSelectSession(data);
+                    let session = new ChampSelectSession(data);
 
                     if (this.champSelectSession !== null) {
                         if (session.getPhase() !== this.champSelectSession.getPhase()) {
-                            this.handleEvent("champ-select-phase-change", this.champSelectSession.getPhase(), session.getPhase());
+                            this.emit("champ-select-phase-change", this.champSelectSession.getPhase(), session.getPhase());
                         }
                         if (session.getPhase() === "BAN" && this.champSelectSession.getPhase() === "INTENT") {
-                            this.handleEvent("champ-select-local-player-ban");
+                            this.emit("champ-select-local-player-ban");
                         }
                         if (session.inProgressActionIds.includes(session.ownPickActionId) && !this.champSelectSession.inProgressActionIds.includes(session.ownPickActionId)) {
-                            this.handleEvent("champ-select-local-player-pick")
+                            this.emit("champ-select-local-player-pick")
                         }
                         if (session.getActionById(session.ownPickActionId).completed && !this.champSelectSession.getActionById(session.ownPickActionId).completed) {
-                            this.handleEvent("champ-select-local-player-pick-completed", session.getActionById(session.ownPickActionId).championId);
+                            this.emit("champ-select-local-player-pick-completed", session.getActionById(session.ownPickActionId).championId);
                         }
                     } else {
-                        this.handleEvent("champ-select-phase-change", "NONE", session.getPhase());
+                        this.emit("champ-select-phase-change", "NONE", session.getPhase());
                     }
 
                     this.champSelectSession = session;
-                    this.handleEvent("champ-select-session-update");
+                    this.emit("champ-select-session-update");
                 }
                 break;
             }
@@ -219,7 +233,7 @@ export default class Client {
      * Accepts a ready check
      */
     acceptMatch() {
-        if(this.httpClient === null) return;
+        if (this.httpClient === null) return;
 
         let request = this.httpClient.createRequest("POST", "/lol-lobby-team-builder/v1/ready-check/accept");
         request.send(response => { }).end();
@@ -229,7 +243,7 @@ export default class Client {
      * Declines a ready check
      */
     declineMatch() {
-        if(this.httpClient === null) return;
+        if (this.httpClient === null) return;
 
         let request = this.httpClient.createRequest("POST", "/lol-lobby-team-builder/v1/ready-check/decline");
         request.send(response => { }).end();
@@ -242,8 +256,8 @@ export default class Client {
      * @param id The champion's id
      */
     declarePickIntent(id: number | string) {
-        if(this.httpClient === null) return;
-        if(this.champSelectSession === null) return;
+        if (this.httpClient === null) return;
+        if (this.champSelectSession === null) return;
 
         let request = this.httpClient.createRequest("PATCH", "/lol-lobby-team-builder/champ-select/v1/session/actions/" + this.champSelectSession.ownPickActionId);
         request.setHeader("Content-Type", "application/json");
@@ -257,8 +271,8 @@ export default class Client {
      * @param id The champion's id
      */
     declareBanIntent(id: number | string) {
-        if(this.httpClient === null) return;
-        if(this.champSelectSession === null) return;
+        if (this.httpClient === null) return;
+        if (this.champSelectSession === null) return;
 
         let request = this.httpClient.createRequest("PATCH", "/lol-lobby-team-builder/champ-select/v1/session/actions/" + this.champSelectSession.ownBanActionId);
         request.setHeader("Content-Type", "application/json");
@@ -271,8 +285,8 @@ export default class Client {
      * Locks the champion pick
      */
     lockPick() {
-        if(this.httpClient === null) return;
-        if(this.champSelectSession === null) return;
+        if (this.httpClient === null) return;
+        if (this.champSelectSession === null) return;
 
         this.httpClient.createRequest("POST", "/lol-lobby-team-builder/champ-select/v1/session/actions/" + this.champSelectSession.ownPickActionId + "/complete").send(res => { }).end();
     }
@@ -281,8 +295,8 @@ export default class Client {
      * Locks the champion ban
      */
     lockBan() {
-        if(this.httpClient === null) return;
-        if(this.champSelectSession === null) return;
+        if (this.httpClient === null) return;
+        if (this.champSelectSession === null) return;
 
         this.httpClient.createRequest("POST", "/lol-lobby-team-builder/champ-select/v1/session/actions/" + this.champSelectSession.ownBanActionId + "/complete").send(res => { }).end();
     }
@@ -292,7 +306,7 @@ export default class Client {
     /**
      * @returns The currently active rune page or null, if not found
      */
-    getActiveRunePage(): LCA.Classes.RunePage | null {
+    getActiveRunePage(): RunePage | null {
         let rp = null;
         this.runePages.forEach(page => {
             if (page.current) rp = page;
@@ -304,8 +318,8 @@ export default class Client {
     /**
      * Retrieves the rune pages from the client
      */
-    updateRunePages(callback: ((runePages: LCA.Classes.RunePage[]) => void) | undefined = undefined): void {
-        if(this.httpClient === null) return;
+    updateRunePages(callback: ((runePages: RunePage[]) => void) | undefined = undefined): void {
+        if (this.httpClient === null) return;
 
         let req = this.httpClient.createRequest('GET', '/lol-perks/v1/pages').send((res) => {
             var body: any[] = [];
@@ -319,10 +333,10 @@ export default class Client {
                     return;
                 }
 
-                this.runePages = body.map(entry => new LCA.Classes.RunePage(entry));
+                this.runePages = body.map(entry => new RunePage(entry));
 
-                if(typeof callback === 'function') callback(this.runePages);
-                this.handleEvent("runes-reloaded", this.runePages);
+                if (typeof callback === 'function') callback(this.runePages);
+                this.emit("runes-reloaded", this.runePages);
             });
         });
 
@@ -332,8 +346,8 @@ export default class Client {
     /**
      * @returns An array of editable rune pages
      */
-    getEditableRunePages(): LCA.Classes.RunePage[] {
-        let pages: LCA.Classes.RunePage[] = [];
+    getEditableRunePages(): RunePage[] {
+        let pages: RunePage[] = [];
         this.runePages.forEach(page => {
             if (page.isEditable) pages.push(page);
         });
@@ -345,7 +359,7 @@ export default class Client {
      * @param id The rune page's id
      */
     setActiveRunePage(id: number | string): void {
-        if(this.httpClient === null) return;
+        if (this.httpClient === null) return;
 
         let request = this.httpClient.createRequest("PUT", "/lol-perks/v1/currentpage");
         let req = request.send((response) => { this.updateRunePages() });
@@ -358,7 +372,7 @@ export default class Client {
      * @param id The rune page's id
      */
     deleteRunePage(id: number | string): void {
-        if(this.httpClient === null) return;
+        if (this.httpClient === null) return;
 
         let request = this.httpClient.createRequest("DELETE", "/lol-perks/v1/pages/" + id);
         let req = request.send((response) => { this.updateRunePages() });
@@ -369,8 +383,8 @@ export default class Client {
      * Creates a rune page in the client
      * @param page The rune page
      */
-    createRunePage(page: LCA.Classes.RunePage): void {
-        if(this.httpClient === null) return;
+    createRunePage(page: RunePage): void {
+        if (this.httpClient === null) return;
 
         let request = this.httpClient.createRequest("POST", "/lol-perks/v1/pages");
         request.setHeader('Content-Type', 'application/json');
@@ -383,7 +397,7 @@ export default class Client {
      * Searches for a rune page with a certain id
      * @param id The id to search for 
      */
-    getRunePageById(id: number | string): LCA.Classes.RunePage | null {
+    getRunePageById(id: number | string): RunePage | null {
         return this.runePages.find(page => page.id === Number(id)) ?? null;
     }
     //#endregion

@@ -1,3 +1,7 @@
-type ChampSelectPhase = 'NONE' | 'INTENT' | 'BAN' | 'PICK' | 'FINALIZE';
+declare global {
+    namespace LCA {
+        type ChampSelectPhase = 'NONE' | 'INTENT' | 'BAN' | 'PICK' | 'FINALIZE';
+    }
+}
 
-export default ChampSelectPhase;
+export { }

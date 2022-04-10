@@ -1,22 +1,9 @@
-import DataInitOptions from "./Types/DataInitOptions";
-import DataObject from "./Types/DataObject";
-import LCA from "./LCA";
-import GameQueue from "./Types/GameQueue";
-import Champion from "./Types/Champion";
-import LanguageCode from "./Types/LanguageCode";
-import GameType from "./Types/GameType";
-import GameMode from "./Types/GameMode";
-import GameMap from "./Types/GameMap";
-import SummonerSpell from "./Types/SummonerSpell";
-
-const httpsGet = LCA.Util.httpsGet;
-
-export type DataKey = "champions" | "summonerSpells" | "queues" | "gameModes" | "maps" | "gameTypes";
+import { httpsGet } from "./Util";
 
 abstract class DataHandler<T>{
     values: T[] = []
 
-    load = async (data: T[] | null, options?: DataInitOptions) => {
+    load = async (data: T[] | null, options?: LCA.DataInitOptions) => {
         if (data !== null) {
             this.values = data;
         } else {
@@ -24,18 +11,11 @@ abstract class DataHandler<T>{
         }
     }
 
-    abstract downloadData(options?: DataInitOptions): Promise<T[]>;
+    abstract downloadData(options?: LCA.DataInitOptions): Promise<T[]>;
 }
 
-type DataType = {
-    dataPatch: string | null;
-    latestPatch: string | null;
-
-    [key: string]: any;
-}
-
-const Data: DataType = {
-    async init({ data = {}, options = {} }: { data?: DataObject, options: DataInitOptions } = { data: {}, options: {} }) {
+const Data: { dataPatch: string | null, latestPatch: string | null, [key: string]: any } = {
+    async init({ data = {}, options = {} }: { data?: LCA.DataObject, options: LCA.DataInitOptions } = { data: {}, options: {} }) {
         options.server = options.server ?? "euw";
         options.language = options.language ?? "en_US";
         options.requireLatestData = options.requireLatestData ?? true;
@@ -66,17 +46,14 @@ const Data: DataType = {
         await Promise.all(promises).catch(err => {
             throw new Error("Error while loading data: " + err);
         });
-
-
-        //window['data'] = Data;
     },
 
     /**
      * 
-     * @returns {DataObject} Data object that can be stored and passed into the init method
+     * @returns {LCA.DataObject} Data object that can be stored and passed into the init method
      */
-    getDataObject(): DataObject {
-        let dataObject: DataObject = { };
+    getDataObject(): LCA.DataObject {
+        let dataObject: LCA.DataObject = { };
         if(this.dataPatch !== null) dataObject.version = this.dataPatch;
 
         Object.entries<any>(this).forEach(([key, value]) => {
@@ -93,7 +70,7 @@ const Data: DataType = {
     dataPatch: null,
     wasUpdated: false,
 
-    getDataDragonUrl(language: LanguageCode = "en_US", patch: string | undefined = undefined, file = ""): string {
+    getDataDragonUrl(language: LCA.LanguageCode = "en_US", patch: string | undefined = undefined, file = ""): string {
         return `https://ddragon.leagueoflegends.com/cdn/${(patch ?? this.latestPatch)}/data/${language}/${file}`;
     },
 
@@ -112,14 +89,14 @@ const Data: DataType = {
         return realmData.dd;
     },
 
-    Champions: new class Champions extends DataHandler<Champion>{
-        downloadData = async (options: DataInitOptions): Promise<Champion[]> => JSON.parse(await httpsGet(`${Data.getDataDragonUrl(options.language, Data.dataPatch, "champion.json")}`) ?? "").data;
+    Champions: new class Champions extends DataHandler<LCA.Champion>{
+        downloadData = async (options: LCA.DataInitOptions): Promise<LCA.Champion[]> => JSON.parse(await httpsGet(`${Data.getDataDragonUrl(options.language, Data.dataPatch, "champion.json")}`) ?? "").data;
 
         /**
          * @param identifier The champions display name, internal name or key
          * @returns The champion corresponding to the passed identifier
          */
-         getChampion(identifier: string | number): Champion | null {
+         getChampion(identifier: string | number): LCA.Champion | null {
             if (!isNaN(identifier as any)) {
                 return this.values.find(champion => champion.key == identifier) ?? null;
             } else {
@@ -128,33 +105,39 @@ const Data: DataType = {
         }
     },
 
-    SummonerSpells: new class SummonerSpells extends DataHandler<SummonerSpell>{
-        downloadData = async (options: DataInitOptions): Promise<SummonerSpell[]> => JSON.parse(await httpsGet(`${Data.getDataDragonUrl(options.language, Data.dataPatch, "summoner.json")}`) ?? "").data;
+    SummonerSpells: new class SummonerSpells extends DataHandler<LCA.SummonerSpell>{
+        downloadData = async (options: LCA.DataInitOptions): Promise<LCA.SummonerSpell[]> => JSON.parse(await httpsGet(`${Data.getDataDragonUrl(options.language, Data.dataPatch, "summoner.json")}`) ?? "").data;
     },
 
-    Queues: new class Queues extends DataHandler<GameQueue>{
-        downloadData = async (): Promise<GameQueue[]> => JSON.parse(await httpsGet(`${Data.getStaticDataUrl("queues.json")}`) ?? "");
+    Queues: new class Queues extends DataHandler<LCA.GameQueue>{
+        downloadData = async (): Promise<LCA.GameQueue[]> => JSON.parse(await httpsGet(`${Data.getStaticDataUrl("queues.json")}`) ?? "");
 
-        getQueue(identifier: number): GameQueue | undefined {
+        getQueue(identifier: number): LCA.GameQueue | undefined {
             return this.values.find(q => q.queueId == identifier);
         }
 
-        getQueuesByMap(map: string): GameQueue[] {
+        getQueuesByMap(map: string): LCA.GameQueue[] {
             return this.values.filter(q => q.map == map);
         }
     },
 
-    Maps: new class Maps extends DataHandler<GameMap>{
-        downloadData = async (): Promise<GameMap[]> => JSON.parse(await httpsGet(`${Data.getStaticDataUrl("maps.json")}`) ?? "");
+    Maps: new class Maps extends DataHandler<LCA.GameMap>{
+        downloadData = async (): Promise<LCA.GameMap[]> => JSON.parse(await httpsGet(`${Data.getStaticDataUrl("maps.json")}`) ?? "");
     },
 
-    GameModes: new class GameModes extends DataHandler<GameMode>{
-        downloadData = async (): Promise<GameMode[]> => JSON.parse(await httpsGet(`${Data.getStaticDataUrl("gameModes.json")}`) ?? "");
+    GameModes: new class GameModes extends DataHandler<LCA.GameMode>{
+        downloadData = async (): Promise<LCA.GameMode[]> => JSON.parse(await httpsGet(`${Data.getStaticDataUrl("gameModes.json")}`) ?? "");
     },
 
-    GameTypes: new class GameTypes extends DataHandler<GameType>{
-        downloadData = async (): Promise<GameType[]> => JSON.parse(await httpsGet(`${Data.getStaticDataUrl("gameTypes.json")}`) ?? "");
+    GameTypes: new class GameTypes extends DataHandler<LCA.GameType>{
+        downloadData = async (): Promise<LCA.GameType[]> => JSON.parse(await httpsGet(`${Data.getStaticDataUrl("gameTypes.json")}`) ?? "");
     }
 }
 
 export default Data;
+
+declare global {
+    namespace LCA {
+        type DataKey = "champions" | "summonerSpells" | "queues" | "gameModes" | "maps" | "gameTypes";
+    }
+}

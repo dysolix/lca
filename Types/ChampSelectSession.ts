@@ -104,3 +104,11 @@ export default class ChampSelectSession {
         return null;
     }
 }
+
+type ChampSelectSessionType = ChampSelectSession;
+
+declare global {
+    namespace LCA {
+        export type ChampSelectSession = ChampSelectSessionType;
+    }
+}
