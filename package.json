@@ -1,0 +1,22 @@
+{
+  "name": "@dysolix/lca",
+  "version": "1.1.1",
+  "description": "TypeScript API to interact with the League of Legends client",
+  "author": "dysolix",
+  "license": "MIT",
+  "main": "index.ts",
+  "dependencies": {
+    "@types/ws": "^8.5.3",
+    "@types/node": "^17.0.23"
+  },
+  "scripts": {
+    "compile": "tsc --project ./tsconfig.json"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "github:dysolix/lca"
+  }
+}
