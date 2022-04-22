@@ -1,7 +1,6 @@
-/node_modules
-/package-lock.json
-/tsconfig.json
-/.npmignore
-/build.mjs
-/scripts
-/dist
+dist/
+node_modules/
+scripts/
+
+package-lock.json
+tsconfig.json
