@@ -1,25 +1,24 @@
-import { httpsGet } from "./Util";
+import { httpsGet } from "./Util.js";
 
 abstract class DataHandler<T>{
     values: T[] = []
 
     isLoaded = () => this.values.length !== 0;
 
-    load = async (data: T[] | null, options?: LCA.DataInitOptions) => {
+    load = async (data: T[] | null, language: LCA.LanguageCode) => {
         if (data !== null) {
             this.values = data;
         } else {
-            this.values = await this.downloadData()
+            this.values = await this.downloadData(language)
         }
     }
 
-    abstract downloadData(options?: LCA.DataInitOptions): Promise<T[]>;
+    abstract downloadData(language: LCA.LanguageCode): Promise<T[]>;
 }
 
 const Data = {
     async init({ data = {}, options = {} }: { data?: LCA.DataObject, options: LCA.DataInitOptions } = { data: {}, options: {} }) {
         options.server = options.server ?? "euw";
-        options.language = options.language ?? "en_US";
         options.requireLatestData = options.requireLatestData ?? true;
 
         this.latestPatch = await this.getLatestPatch(options.server);
@@ -28,20 +27,22 @@ const Data = {
                 throw new Error("Unable to retrieve latest patch.");
         }
 
-        this.dataPatch = data.version ?? null;
-
         let promises: Promise<any>[] = [];
 
         let targetDataVersion = options.requireLatestData ? Data.latestPatch : (data.version ?? null);
         if (targetDataVersion == null) throw new Error("Invalid target data version: " + targetDataVersion);
-        Data.dataPatch = targetDataVersion;
+        this.dataPatch = targetDataVersion;
 
-        Object.entries(Data).forEach(([key, val]) => {
-            if(val instanceof DataHandler){
-                let dataValues = (options.requireLatestData && Data.latestPatch !== data.version) ? null : data[key.charAt(0).toLowerCase() + key.substring(1)];
-                if (dataValues === null) Data.wasUpdated = true;
+        Object.entries(this).forEach(([key, val]) => {
+            if (val instanceof DataHandler) {
+                let dataKey = key.charAt(0).toLowerCase() + key.substring(1);
+                if (!(options.requiredData?.includes(dataKey) ?? true))
+                    return;
 
-                promises.push(val.load(dataValues, options));
+                let dataValues = (options.requireLatestData && Data.latestPatch !== data.version) ? null : data[dataKey];
+                if (dataValues === null) Data.hasUpdated = true;
+
+                promises.push(val.load(dataValues, options.language ?? "en_US"));
             }
         })
 
@@ -55,12 +56,12 @@ const Data = {
      * @returns {LCA.DataObject} Data object that can be stored and passed into the init method
      */
     getDataObject(): LCA.DataObject {
-        let dataObject: LCA.DataObject = { };
-        if(this.dataPatch !== null) dataObject.version = this.dataPatch;
+        let dataObject: LCA.DataObject = {};
+        if (this.dataPatch !== null) dataObject.version = this.dataPatch;
 
         Object.entries<any>(this).forEach(([key, value]) => {
-            if (value?.values?.length > 0) {
-                dataObject[key.charAt(0).toLowerCase() + key.substring(1)] = value.values;
+            if(value instanceof DataHandler && value.isLoaded()){
+                dataObject[key] = value.values;
             }
         });
 
@@ -70,7 +71,7 @@ const Data = {
     /** Latest patch  */
     latestPatch: null as LCA.Nullable<string>,
     dataPatch: null as LCA.Nullable<string>,
-    wasUpdated: false,
+    hasUpdated: false,
 
     getDataDragonUrl(language: LCA.LanguageCode = "en_US", patch: string | undefined = undefined, file = ""): string {
         return `https://ddragon.leagueoflegends.com/cdn/${(patch ?? this.latestPatch)}/data/${language}/${file}`;
@@ -92,13 +93,13 @@ const Data = {
     },
 
     Champions: new class Champions extends DataHandler<LCA.Champion>{
-        downloadData = async (options: LCA.DataInitOptions): Promise<LCA.Champion[]> => JSON.parse(await httpsGet(`${Data.getDataDragonUrl(options.language, Data.dataPatch ?? undefined, "champion.json")}`) ?? "").data;
+        downloadData = async (language: LCA.LanguageCode): Promise<LCA.Champion[]> => JSON.parse(await httpsGet(`${Data.getDataDragonUrl(language, Data.dataPatch ?? undefined, "champion.json")}`) ?? "").data;
 
         /**
          * @param identifier The champions display name, internal name or key
          * @returns The champion corresponding to the passed identifier
          */
-         getChampion(identifier: string | number): LCA.Champion | null {
+        getChampion(identifier: string | number): LCA.Champion | null {
             if (!isNaN(identifier as any)) {
                 return this.values.find(champion => champion.key == identifier) ?? null;
             } else {
@@ -108,47 +109,47 @@ const Data = {
     },
 
     SummonerSpells: new class SummonerSpells extends DataHandler<LCA.SummonerSpell>{
-        downloadData = async (options: LCA.DataInitOptions): Promise<LCA.SummonerSpell[]> => JSON.parse(await httpsGet(`${Data.getDataDragonUrl(options.language, Data.dataPatch ?? undefined, "summoner.json")}`) ?? "").data;
+        downloadData = async (language: LCA.LanguageCode): Promise<LCA.SummonerSpell[]> => JSON.parse(await httpsGet(`${Data.getDataDragonUrl(language, Data.dataPatch ?? undefined, "summoner.json")}`) ?? "").data;
     },
 
     Runes: new class Runes extends DataHandler<LCA.RuneTree> {
-        downloadData = async (options: LCA.DataInitOptions): Promise<LCA.RuneTree[]> => JSON.parse(await httpsGet(Data.getDataDragonUrl(options.language, Data.dataPatch ?? undefined, "runesReforged.json")) ?? "");
+        downloadData = async (language: LCA.LanguageCode): Promise<LCA.RuneTree[]> => JSON.parse(await httpsGet(Data.getDataDragonUrl(language, Data.dataPatch ?? undefined, "runesReforged.json")) ?? "");
 
         getRune(identifier: number | string): LCA.Rune | null {
             var predicate: (rune: LCA.Rune) => boolean;
 
-            if(!isNaN(identifier as any)){
+            if (!isNaN(identifier as any)) {
                 predicate = rune => rune.id == identifier;
-            }else{
+            } else {
                 predicate = rune => rune.key == identifier || rune.name == identifier;
             }
 
-            for(const runeTree of this.values){
-                for(const runeSlot of runeTree.slots){
+            for (const runeTree of this.values) {
+                for (const runeSlot of runeTree.slots) {
                     let rune = runeSlot.runes.find(predicate);
-                    if(rune !== undefined) return rune;
+                    if (rune !== undefined) return rune;
                 }
             }
 
             return null;
         }
 
-        getRuneTree(identifier: number | string): LCA.RuneTree | null{
+        getRuneTree(identifier: number | string): LCA.RuneTree | null {
             var predicate: (runeTree: LCA.RuneTree) => boolean;
 
-            if(!isNaN(identifier as any)){
+            if (!isNaN(identifier as any)) {
                 predicate = runeTree => runeTree.id == identifier;
-            }else{
+            } else {
                 predicate = runeTree => runeTree.key == identifier || runeTree.name == identifier;
             }
 
             return this.values.find(predicate) ?? null;
         }
 
-        getRuneTreeByRune(rune: LCA.Rune | string | number): LCA.RuneTree | null{
-            if(typeof rune === "string" || typeof rune === "number"){
+        getRuneTreeByRune(rune: LCA.Rune | string | number): LCA.RuneTree | null {
+            if (typeof rune === "string" || typeof rune === "number") {
                 let r = this.getRune(rune);
-                if(r === null) 
+                if (r === null)
                     return null;
 
                 rune = r;
@@ -184,9 +185,3 @@ const Data = {
 }
 
 export default Data;
-
-declare global {
-    namespace LCA {
-        type DataKey = "champions" | "summonerSpells" | "queues" | "gameModes" | "maps" | "gameTypes";
-    }
-}

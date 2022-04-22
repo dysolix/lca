@@ -1,9 +1,10 @@
 import HttpsClient from "./HttpsClient";
 import { exec } from "child_process";
-import * as WebSocket from "ws";
+import { WebSocket } from "ws";
 import { delay } from "./Util";
-import ChampSelectSession from "./Types/ChampSelectSession";
-import RunePage from "./Types/RunePage";
+import ChampSelectSession from "./Classes/ChampSelectSession";
+import RunePage from "./Classes/RunePage";
+
 
 type ConnectionStateChangeCallback = (state: boolean) => void;
 
@@ -15,13 +16,17 @@ type ChampSelectLocalPlayerPickCompletedCallback = (championId: number) => void;
 
 type GameFlowPhaseChangeCallback = (previousPhase: LCA.GameFlowPhase, phase: LCA.GameFlowPhase) => void;
 
-type RunesReloadedCallback = (runes: LCA.RunePage[]) => void;
+type RunesReloadedCallback = (runes: RunePage[]) => void;
 
-declare global {
-    var leagueClient: Client
-}
+type SubscribedEventCallback = (event: [opcode: number, name: string, data: { eventType: string; uri: string; data: any; }]) => void;
 
 type Nullable<T> = LCA.Nullable<T>;
+
+declare global {
+    interface Window {
+        leagueClient: Client
+    }
+}
 
 export default class Client {
     public isConnected: boolean = false;
@@ -38,11 +43,15 @@ export default class Client {
 
     private autoReconnect: boolean;
 
+    /**
+     * @param autoReconnect Determines if the client should automatically try to reconnect if the connection closes. Defaults to true.
+     */
     constructor(autoReconnect = true) {
-        leagueClient = this;
+        window.leagueClient = this;
         this.autoReconnect = autoReconnect;
     }
 
+    //#region LCA Events
     on(event: "connection-state-change", callback: ConnectionStateChangeCallback): void;
     on(event: "champ-select-session-update", callback: ChampSelectSessionUpdateCallback): void;
     on(event: "champ-select-phase-change", callback: ChampSelectPhaseChangeCallback): void;
@@ -51,6 +60,8 @@ export default class Client {
     on(event: "champ-select-local-player-pick-completed", callback: ChampSelectLocalPlayerPickCompletedCallback): void;
     on(event: "game-flow-phase-change", callback: GameFlowPhaseChangeCallback): void;
     on(event: "runes-reloaded", callback: RunesReloadedCallback): void;
+    /** This is called when the League of Legends client emits an event */
+    on(event: "subscribed-event", callback: SubscribedEventCallback): void;
 
     on(event: LCA.LCAEvent, callback: (...args: any[]) => void) {
         if (!this.eventHandlers.has(event))
@@ -67,6 +78,7 @@ export default class Client {
     once(event: "champ-select-local-player-pick-completed", callback: ChampSelectLocalPlayerPickCompletedCallback): void;
     once(event: "game-flow-phase-change", callback: GameFlowPhaseChangeCallback): void;
     once(event: "runes-reloaded", callback: RunesReloadedCallback): void;
+    once(event: "subscribed-event", callback: SubscribedEventCallback): void;
 
     once(event: LCA.LCAEvent, callback: (...args: any[]) => void) {
         if (!this.oneTimeEventHandlers.has(event))
@@ -74,6 +86,7 @@ export default class Client {
 
         this.oneTimeEventHandlers.get(event)?.push(callback);
     }
+    //#endregion
 
     private eventHandlers = new Map<string, ((...args: any[]) => void)[]>();
     private oneTimeEventHandlers = new Map<string, ((...args: any[]) => void)[]>();
@@ -150,29 +163,29 @@ export default class Client {
             await delay(2500);
             if (this.autoReconnect)
                 this.connect()
+            else
+                throw new Error("Unable to connect to the League of Legends client.")
         });
     }
 
-    disconnect() {
+    private subscribedEvents: string[] = [];
 
-    }
+    subscribeEvent(eventName: LCA.LCUEvent | string) {
+        if(this.subscribedEvents.includes(eventName)) return;
 
-    subscribeEvent(eventName: LCA.LCUEvent) {
         if (this.webSocket !== null && this.webSocket.readyState === 1) {
             this.webSocket.send(JSON.stringify([5, eventName]));
+            this.subscribedEvents.push(eventName);
         }
     }
 
-    unsubscribeEvent(eventName: LCA.LCUEvent) {
+    unsubscribeEvent(eventName: LCA.LCUEvent | string) {
         if (this.webSocket !== null && this.webSocket.readyState === 1) {
             this.webSocket.send(JSON.stringify([6, eventName]));
         }
     }
-    /**
-     * 
-     * @param {[opcode: number, name: string, data: {eventType: string, uri: string, data: {}}]} event 
-     */
-    onSubscribedEvent(event: [opcode: number, name: string, data: { eventType: string; uri: string; data: any; }]) {
+
+    private onSubscribedEvent(event: [opcode: number, name: string, data: { eventType: string; uri: string; data: any; }]) {
         let value = event[2];
         let eventType = value.eventType;
         let uri = value.uri;
@@ -383,7 +396,7 @@ export default class Client {
      * Creates a rune page in the client
      * @param page The rune page
      */
-    createRunePage(page: RunePage): void {
+    createRunePage(page: RunePage | string): void {
         if (this.httpClient === null) return;
 
         let request = this.httpClient.createRequest("POST", "/lol-perks/v1/pages");

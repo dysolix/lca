@@ -4,7 +4,7 @@ export default class ChampSelectSession {
     ownPickActionId: number;
     inProgressActionIds: number[];
 
-    constructor(data: any) {
+    constructor(data: LCA.ChampSelectSessionData) {
         this.data = data;
         this.ownBanActionId = -1;
         this.ownPickActionId = -1;
@@ -102,13 +102,5 @@ export default class ChampSelectSession {
         }
 
         return null;
-    }
-}
-
-type ChampSelectSessionType = ChampSelectSession;
-
-declare global {
-    namespace LCA {
-        export type ChampSelectSession = ChampSelectSessionType;
     }
 }

@@ -44,22 +44,3 @@ export default class HttpsClient {
         return request;
     }
 }
-
-declare global {
-    namespace LCA {
-        type HttpsRequest = {
-            options: HttpsRequestOptions,
-            setHeader: (headerName: string, headerValue: any) => void,
-            send: (callback: (response: IncomingMessage) => void) => ClientRequest
-        }
-
-        type HttpsRequestOptions = {
-            hostname: string,
-            port: number,
-            method?: string,
-            path?: string,
-            headers: { [key: string]: any; },
-            agent: https.Agent | boolean
-        }
-    }
-}

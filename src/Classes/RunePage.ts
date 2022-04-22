@@ -73,11 +73,3 @@ export default class RunePage {
         return jsonObj;
     }
 }
-
-type RunePageType = RunePage;
-
-declare global {
-    namespace LCA {
-        type RunePage = RunePageType;
-    }
-}
