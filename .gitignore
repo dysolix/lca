@@ -3,3 +3,5 @@
 /tsconfig.json
 /.npmignore
 /build.mjs
+/scripts
+/dist
