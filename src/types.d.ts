@@ -62,7 +62,6 @@ declare namespace LCA {
         server?: ServerRegion;
         language?: LanguageCode;
         requiredData?: DataKey[];
-        dataVersion?: string;
     };
 
     type DataObject = {
