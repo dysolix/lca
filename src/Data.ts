@@ -35,11 +35,10 @@ const Data = {
 
         Object.entries(this).forEach(([key, val]) => {
             if (val instanceof DataHandler) {
-                let dataKey = key.charAt(0).toLowerCase() + key.substring(1);
-                if (!(options.requiredData?.includes(dataKey) ?? true))
+                if (!(options.requiredData?.includes(key) ?? true))
                     return;
 
-                let dataValues = (options.requireLatestData && Data.latestPatch !== data.version) ? null : data[dataKey];
+                let dataValues = (options.requireLatestData && Data.latestPatch !== data.version) ? null : data[key];
                 if (dataValues === null) Data.hasUpdated = true;
 
                 promises.push(val.load(dataValues, options.language ?? "en_US"));

@@ -1,6 +1,6 @@
 {
     "name": "@dysolix/lca",
-    "version": "0.0.2",
+    "version": "0.0.4",
     "description": "TypeScript API to interact with the League of Legends client",
     "author": "dysolix",
     "license": "MIT",
